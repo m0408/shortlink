@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>단축 링크 생성기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            letter-spacing: -0.02em;
+        }
+        .modern-card {
+            background: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+        }
+        .mono { font-family: 'ui-monospace', 'SFMono-Regular', Menlo, Monaco, Consolas, monospace; }
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-bottom-color: #ffffff;
+            border-radius: 50%;
+            display: inline-block;
+            animation: rotation 0.8s linear infinite;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #toast {
+            visibility: hidden;
+            min-width: 280px;
+            background-color: #1e293b;
+            color: #fff;
+            text-align: center;
+            border-radius: 12px;
+            padding: 16px;
+            position: fixed;
+            z-index: 100;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 40px;
+            font-size: 15px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        #toast.show { visibility: visible; opacity: 1; bottom: 50px; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6 sm:p-10">
+    <div class="w-full max-w-xl space-y-8">
+        <div class="text-center space-y-3">
+            <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900">단축 링크 생성기</h1>
+            <p class="text-slate-500 text-lg sm:text-xl font-medium">
+                <span class="text-[#1e177d] font-semibold">긴 링크는 짧게!</span> <span class="text-[#1e177d] font-semibold">QR코드까지 한번에!!</span>
+            </p>
+        </div>
+        <div class="modern-card rounded-[1.5rem] p-8 sm:p-12 space-y-10">
+            <div class="space-y-6">
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">연결할 원본 주소</label>
+                    <input type="text" id="longUrl" placeholder="https://example.com" 
+                        class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#1e177d]/20 focus:border-[#1e177d] outline-none transition-all text-lg font-medium">
+                </div>
+                <div class="space-y-2">
+                    <label class="block text-sm font-bold text-slate-700 uppercase tracking-wider ml-1">맞춤 주소 설정 (선택사항)</label>
+                    <div class="flex items-center group">
+                        <span class="inline-flex items-center px-5 py-4 bg-slate-100 border border-r-0 border-slate-200 rounded-l-xl text-slate-500 text-lg font-semibold">is.gd/</span>
+                        <input type="text" id="customSlug" placeholder="예시 : customize2026" 
+                            class="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-r-xl focus:bg-white focus:ring-2 focus:ring-[#1e177d]/20 focus:border-[#1e177d] outline-none transition-all text-lg font-medium">
+                    </div>
+                </div>
+                <button onclick="createShortUrl()" id="submitBtn" class="w-full bg-[#1e177d] hover:bg-[#282099] text-white text-xl font-bold py-5 rounded-xl shadow-lg shadow-slate-200 active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                    <span>데이터 생성하기</span>
+                </button>
+            </div>
+            <div id="errorMsg" class="hidden text-sm font-bold text-center text-red-500 py-4 bg-red-50 rounded-xl border border-red-100 px-4"></div>
+            <div id="resultBox" class="hidden space-y-10 pt-10 border-t border-slate-100 animate-[fadeIn_0.4s_ease-out]">
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center px-1">
+                        <label class="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">생성된 단축 주소</label>
+                        <button onclick="copyToClipboard()" id="copyBtn" class="text-sm font-bold text-[#1e177d] hover:opacity-70 transition-colors border-b-2 border-[#1e177d] pb-0.5">주소 복사</button>
+                    </div>
+                    <div class="bg-slate-50 p-6 rounded-2xl flex items-center justify-between border border-slate-100 group">
+                        <span id="shortUrlResult" class="mono text-slate-900 text-2xl font-bold tracking-tighter break-all"></span>
+                        <div class="h-2 w-2 rounded-full bg-[#1e177d] animate-pulse"></div>
+                    </div>
+                </div>
+                <div class="flex flex-col items-center gap-6">
+                    <div class="p-6 bg-white border border-slate-100 rounded-3xl shadow-sm">
+                        <img id="qrImage" src="" alt="QR" class="w-40 h-40">
+                    </div>
+                    <button onclick="downloadQR()" class="text-xs font-bold text-slate-400 hover:text-slate-900 transition-colors uppercase tracking-[0.2em] flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        QR 이미지 다운로드
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="pt-4 text-center space-y-2">
+            <p class="text-sm font-bold text-slate-500 tracking-tight">Disital Life Academy @ 2026 명쌤</p>
+        </div>
+    </div>
+    <div id="toast">메시지</div>
+    <script>
+        function showToast(message) {
+            const toast = document.getElementById("toast");
+            toast.innerText = message;
+            toast.classList.add("show");
+            setTimeout(() => { toast.classList.remove("show"); }, 3000);
+        }
+        function showError(msg) {
+            const errorMsg = document.getElementById('errorMsg');
+            errorMsg.innerHTML = "오류: " + msg;
+            errorMsg.classList.remove('hidden');
+            resetButton();
+        }
+        function resetButton() {
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.innerHTML = '<span>데이터 생성하기</span>';
+            submitBtn.disabled = false;
+        }
+        async function createShortUrl() {
+            const longUrlInput = document.getElementById('longUrl');
+            const customSlugInput = document.getElementById('customSlug');
+            const errorMsg = document.getElementById('errorMsg');
+            const submitBtn = document.getElementById('submitBtn');
+            const resultBox = document.getElementById('resultBox');
+            let rawUrl = longUrlInput.value.trim();
+            if (!rawUrl) {
+                showError("원본 주소를 입력해 주세요.");
+                return;
+            }
+            if (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://')) {
+                rawUrl = 'https://' + rawUrl;
+            }
+            errorMsg.classList.add('hidden');
+            resultBox.classList.add('hidden');
+            submitBtn.innerHTML = '<span class="loader"></span> 생성 중...';
+            submitBtn.disabled = true;
+            const longUrl = encodeURIComponent(rawUrl);
+            const customSlug = customSlugInput.value.trim();
+            let isgdUrl = `https://is.gd/create.php?format=json&url=${longUrl}`;
+            if (customSlug) {
+                isgdUrl += `&shorturl=${encodeURIComponent(customSlug)}`;
+            }
+            const proxies = [
+                (url) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+                (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`
+            ];
+            let success = false;
+            for (let getProxyUrl of proxies) {
+                try {
+                    const response = await fetch(getProxyUrl(isgdUrl));
+                    if (!response.ok) continue;
+                    const data = await response.json();
+                    let finalData = data.contents ? JSON.parse(data.contents) : data;
+                    if (finalData && finalData.shorturl) {
+                        renderResult(finalData.shorturl);
+                        success = true;
+                        break;
+                    } else if (finalData && finalData.errormessage) {
+                        showError(finalData.errormessage);
+                        success = true;
+                        break;
+                    }
+                } catch (e) { console.error("Proxy error:", e); }
+            }
+            if (!success) {
+                showError("현재 서버 응답이 원활하지 않습니다. 다시 시도해 주세요.");
+            }
+        }
+        function renderResult(shortUrl) {
+            const resultBox = document.getElementById('resultBox');
+            const shortUrlResult = document.getElementById('shortUrlResult');
+            const qrImage = document.getElementById('qrImage');
+            shortUrlResult.innerText = shortUrl;
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=600x600&data=${encodeURIComponent(shortUrl)}&margin=10&color=1e177d`;
+            qrImage.src = qrUrl;
+            resultBox.classList.remove('hidden');
+            resetButton();
+            showToast("링크와 QR 코드가 준비되었습니다.");
+        }
+        function copyToClipboard() {
+            const shortUrl = document.getElementById('shortUrlResult').innerText;
+            const copyBtn = document.getElementById('copyBtn');
+            const textArea = document.createElement("textarea");
+            textArea.value = shortUrl;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            const originalText = copyBtn.innerText;
+            copyBtn.innerText = "복사 완료";
+            copyBtn.style.color = "#10b981";
+            showToast("클립보드에 복사되었습니다.");
+            setTimeout(() => {
+                copyBtn.innerText = originalText;
+                copyBtn.style.color = "";
+            }, 1500);
+        }
+        async function downloadQR() {
+            const qrImage = document.getElementById('qrImage');
+            const qrUrl = qrImage.src;
+            const name = document.getElementById('shortUrlResult').innerText.split('/').pop();
+            try {
+                const response = await fetch(qrUrl);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `qr_${name}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                showToast("QR 이미지를 성공적으로 저장했습니다.");
+            } catch (e) { window.open(qrUrl, '_blank'); }
+        }
+    </script>
+</body>
+</html>
